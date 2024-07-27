@@ -24,22 +24,24 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "isotp.h"
+#include "stm32f407x_flash.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-
+typedef void (*ptrF)(uint32_t dlyticks);
+typedef void (*pFunction)(void);
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define MAX_FIRMWARE_SIZE 1024 * 50
 #define ISOTP_BUFSIZE 4096
 #define ISOTP_RECV_CAN_ID 0x700
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -50,29 +52,63 @@ uint8_t TxData[8];
 uint32_t TxMailbox;
 CAN_RxHeaderTypeDef RxHeader;
 uint8_t RxData[8];
+uint32_t filePos = 0; // Position in firmware file in words
 
 static IsoTpLink isotp_link;
 
 static uint8_t isotp_rx_buffer[ISOTP_BUFSIZE];
 static uint8_t isotp_tx_buffer[ISOTP_BUFSIZE];
-
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
-
+void goToApp(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+void goToApp(void)
+{
+  uint32_t JumpAddress;
+  pFunction Jump_to_Application;
+  printf("Jumping to Application \n");
+
+  if (((*(uint32_t *)FLASH_APP_ADDR) & 0x2FFC0000) == 0x20000000)
+  {
+    HAL_Delay(100);
+    printf("Valid Stack Pointer...\n");
+
+    JumpAddress = *(uint32_t *)(FLASH_APP_ADDR + 4);
+    Jump_to_Application = (pFunction)JumpAddress;
+
+    __set_MSP(*(uint32_t *)FLASH_APP_ADDR);
+    Jump_to_Application();
+  }
+  else
+  {
+    printf("Failed to Start Application\n");
+  }
+}
+
 void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan) {
   if (HAL_CAN_GetRxMessage(&hcan1, CAN_RX_FIFO0, &RxHeader, RxData) != HAL_OK) {
     Error_Handler();
   }
 
-  if (RxHeader.StdId == ISOTP_RECV_CAN_ID) {
+  switch (RxHeader.StdId)
+  {
+  case ISOTP_RECV_CAN_ID:
     isotp_on_can_message(&isotp_link, RxData, RxHeader.DLC);
+    break;
+  
+  case 0x703:
+    // Firmware received, jump to application
+    JumpToApp();
+    break;
+  
+  default:
+    break;
   }
 }
 /* USER CODE END 0 */
@@ -83,14 +119,7 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan) {
   */
 int main(void)
 {
-
   /* USER CODE BEGIN 1 */
-  TxHeader.IDE = CAN_ID_STD;
-  TxHeader.StdId = 0x111;
-  TxHeader.RTR = CAN_RTR_DATA;
-  TxHeader.DLC = 2;
-  TxData[0] = 'h';
-  TxData[1] = 'i';
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -114,29 +143,60 @@ int main(void)
   MX_CAN1_Init();
   /* USER CODE BEGIN 2 */
 
+  // If BOOT pin is reset, jump to application
+  if (HAL_GPIO_ReadPin(BOOT_GPIO_Port, BOOT_Pin) == GPIO_PIN_RESET) {
+    JumpToApp();
+  }
+
+  // Activate CAN RX interrupt
   if (HAL_CAN_ActivateNotification(&hcan1, CAN_IT_RX_FIFO0_MSG_PENDING) != HAL_OK)
   {
     Error_Handler();
   }
 
+  // Initialize ISO-TP
   isotp_init_link(&isotp_link, 0x701, isotp_tx_buffer, ISOTP_BUFSIZE, isotp_rx_buffer, ISOTP_BUFSIZE);
+
+  // Erase flash
+  flashEraseAppSectors();
 
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  int ret;
   while (1)
   {
+    // Poll ISO-TP Link
     isotp_poll(&isotp_link);
 
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    // if (HAL_CAN_AddTxMessage(&hcan1, &TxHeader, TxData, &TxMailbox) != HAL_OK)
-    // {
-    //   Error_Handler();
-    // }
-    // HAL_Delay(1000);
+
+    // Receive firmware at ISOTP_BUFSIZE increments, and write to flash
+    if (isotp_link.receive_status == ISOTP_RECEIVE_STATUS_FULL) {
+      // Write to flash
+      ret = flashWriteApp(filePos, isotp_link.receive_buffer, isotp_link.receive_size);
+
+      if (ret != 0) {
+        // Error writing to flash
+        // Send error message
+        TxHeader.StdId = 0x702;
+        TxHeader.DLC = 1;
+        TxData[0] = 0x00;
+        HAL_CAN_AddTxMessage(&hcan1, &TxHeader, TxData, &TxMailbox);
+        Error_Handler();
+      }
+
+      // Send success message
+      TxHeader.StdId = 0x702;
+      TxHeader.DLC = 1;
+      TxData[0] = 0x01;
+      HAL_CAN_AddTxMessage(&hcan1, &TxHeader, TxData, &TxMailbox);
+
+      filePos += isotp_link.receive_size;
+    }
   }
   /* USER CODE END 3 */
 }
