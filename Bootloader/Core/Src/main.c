@@ -104,7 +104,7 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan) {
   
   case 0x703:
     // Firmware received, jump to application
-    JumpToApp();
+    // goToApp();
     break;
   
   default:
@@ -143,9 +143,12 @@ int main(void)
   MX_CAN1_Init();
   /* USER CODE BEGIN 2 */
 
+  // for testing, set boot pin to high
+  HAL_GPIO_WritePin(BOOT_GPIO_Port, BOOT_Pin, GPIO_PIN_SET);
+
   // If BOOT pin is reset, jump to application
   if (HAL_GPIO_ReadPin(BOOT_GPIO_Port, BOOT_Pin) == GPIO_PIN_RESET) {
-    JumpToApp();
+    goToApp();
   }
 
   // Activate CAN RX interrupt
@@ -159,6 +162,12 @@ int main(void)
 
   // Erase flash
   flashEraseAppSectors();
+
+  // Send inital NACK message
+  TxHeader.StdId = 0x702;
+  TxHeader.DLC = 1;
+  TxData[0] = 0x00;
+  HAL_CAN_AddTxMessage(&hcan1, &TxHeader, TxData, &TxMailbox);
 
   /* USER CODE END 2 */
 
@@ -177,7 +186,7 @@ int main(void)
     // Receive firmware at ISOTP_BUFSIZE increments, and write to flash
     if (isotp_link.receive_status == ISOTP_RECEIVE_STATUS_FULL) {
       // Write to flash
-      ret = flashWriteApp(filePos, isotp_link.receive_buffer, isotp_link.receive_size);
+      ret = flashWriteApp(filePos, (uint32_t *) isotp_link.receive_buffer, isotp_link.receive_size / 4);
 
       if (ret != 0) {
         // Error writing to flash

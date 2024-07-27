@@ -1,0 +1,14 @@
+@startuml Bootloader Flow
+:Bootloader Start;
+:Check GPIO state;
+if (GPIO state is high) then (yes)
+    :Start firmware loading over CAN;
+    :Load firmware;
+    :Start application;
+    kill;
+else (no)
+    :Start application;
+    kill;
+endif
+
+@enduml

@@ -63,24 +63,13 @@ MEMORY
 {
 RAM (xrw)      : ORIGIN = 0x20000000, LENGTH = 128K
 CCMRAM (xrw)      : ORIGIN = 0x10000000, LENGTH = 64K
-FLASH (rx)      : ORIGIN = 0x8008000, LENGTH = 480K
-BOOTLOADER (rx) : ORIGIN = 0x8000000, LENGTH = 32K
+FLASH (rx)      : ORIGIN = 0x8000000, LENGTH = 32K 
+BOOTLOADER (rx) : ORIGIN = 0x8018000, LENGTH = 32K
 }
 
 /* Define output sections */
 SECTIONS
 {
-  /* Custom Bootloader section */
-  .bootloader :
-  {
-    . = ALIGN(4);
-    __bootloader_start__ = .;
-    *(.bootloader*)
-    __bootloader_end__ = .;
-  } > BOOTLOADER
-
-  /* check if BOOTLOADER usage exceeds BOOTLOADER size */
-  ASSERT(LENGTH(BOOTLOADER) >= (__bootloader_end__ - __bootloader_start__), "BOOTLOADER memory overflowed!")
 
   /* The startup code goes first into FLASH */
   .isr_vector :
@@ -106,6 +95,18 @@ SECTIONS
     . = ALIGN(4);
     _etext = .;        /* define a global symbols at end of code */
   } >FLASH
+
+  /* Custom Bootloader section */
+  .bootloader :
+  {
+    . = ALIGN(4);
+    __bootloader_start__ = .;
+    *(.bootloader*)
+    __bootloader_end__ = .;
+  } >BOOTLOADER
+
+  /* check if BOOTLOADER usage exceeds BOOTLOADER size */
+  ASSERT(LENGTH(BOOTLOADER) >= (__bootloader_end__ - __bootloader_start__), "BOOTLOADER memory overflowed!")
 
   /* Constant data goes into FLASH */
   .rodata :
