@@ -12,8 +12,13 @@ ISOTP_CAN_ID_RECV = 0x701
 CAN_ID_SEND = 0x703
 CAN_ID_RECV = 0x702
 
+ACK = 0x06
+NACK = 0x15
+
 BUFFERING_SIZE = 4096
 MAX_FILESIZE = 1024 * 50
+
+logging.basicConfig(level=logging.INFO)
 
 def main(*args, **kwargs):
   # First argument is filename of binary file to send
@@ -24,11 +29,38 @@ def main(*args, **kwargs):
   bus = SocketcanBus(channel="can0")
   addr = isotp.Address(isotp.AddressingMode.Normal_11bits, txid=ISOTP_CAN_ID_SEND, rxid=ISOTP_CAN_ID_RECV)
   params = {
-    'blocking_send': True
+    'blocking_send': False 
   }
 
   notifier = Notifier(bus, listeners=[])
   stack = isotp.NotifierBasedCanStack(bus, address=addr, notifier=notifier, error_handler=error_handler, params=params)
+
+  logging.info("Waiting for inital NACK from receiver")
+  stack.start()
+  
+  # Wait for NACK from receiver
+  try:
+    res = stack.recv(block=True)
+    if res[0] == NACK:
+      logging.info("Received Initial NACK!")
+    else:
+      raise Exception("Received unexpected message: ", res)
+  except Exception as e:
+    stack.stop()
+    bus.shutdown()
+    raise e
+  
+  try:
+    # Send start ACK
+    stack.send(data=ACK.to_bytes(1), send_timeout=2)
+  except Exception as e:
+    stack.stop()
+    bus.shutdown()
+    raise e
+
+  stack.stop()
+
+  logging.info("Sent initial ACK, starting file transfer.")
 
   # Open file buffered by 4KB
   with open(filename, "rb") as f:
@@ -38,27 +70,28 @@ def main(*args, **kwargs):
       # Send chunk over ISOTP
       stack.start()
       stack.send(chunk)
-      logging.debug("Sent chunk of size: ", len(chunk))
-      stack.stop()
+      logging.info(f"Sent chunk of size: {len(chunk)}")
       
       # Wait for response
-      res = bus.recv()
-      if res.arbitration_id == CAN_ID_RECV:
-        if res.data == 0x1:
-          logging.debug("Received ACK")
-        elif res.data == 0x0:
-          raise Exception("Received NACK, aborting")
-      else:
-        raise Exception("Received unexpected message: ", res)
-        
+      try:
+        res = stack.recv(block=True)
+        if res[0] == ACK:
+          logging.info("Received ACK on chunk receive!")
+        elif res[0] == NACK:
+          raise Exception("Received NACK on chunk receive, aborting.")
+      except Exception as e:
+        stack.stop()
+        bus.shutdown()
+        raise e
+
       # Read next chunk
       chunk = f.read(BUFFERING_SIZE)
 
   # File sent, close connection
-  print("File sent successfully")
-  success_msg = Message(arbitration_id=CAN_ID_SEND, data=[0x1])
-  bus.send(success_msg)
+  print("File sent successfully!")
+  stack.send(data=ACK.to_bytes(1), send_timeout=2)
   
+  stack.stop()
   bus.shutdown()
 
 def error_handler(error):

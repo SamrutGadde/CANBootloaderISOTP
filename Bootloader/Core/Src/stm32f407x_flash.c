@@ -131,13 +131,13 @@ uint32_t flashEraseAppSectors()
   EraseInitStruct.TypeErase = FLASH_TYPEERASE_SECTORS;
   EraseInitStruct.VoltageRange = FLASH_VOLTAGE_RANGE_3;
   EraseInitStruct.Sector = sectorNum;
-  EraseInitStruct.NbSectors = FLASH_SECTOR_11 - FLASH_SECTOR_2;
+  EraseInitStruct.NbSectors = FLASH_SECTOR_11 - sectorNum;
 
   /* Note: If an erase operation in Flash memory also concerns data in the data or instruction cache,
      you have to make sure that these data are rewritten before they are accessed during code
      execution. If this cannot be done safely, it is recommended to flush the caches by setting the
      DCRST and ICRST bits in the FLASH_CR register. */
-  if (HAL_FLASHEx_Erase(&EraseInitStruct, &sectorErr) != HAL_OK)
+  if (HAL_FLASHEx_Erase(&EraseInitStruct, &sectorErr) != HAL_OK || sectorErr != 0xFFFFFFFFU)
   {
     printf("Failed Erasing App Sectors...\n");
     return HAL_FLASH_GetError();

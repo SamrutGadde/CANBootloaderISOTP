@@ -38,6 +38,9 @@ typedef void (*pFunction)(void);
 #define MAX_FIRMWARE_SIZE 1024 * 50
 #define ISOTP_BUFSIZE 4096
 #define ISOTP_RECV_CAN_ID 0x700
+
+#define ACK 0x06
+#define NACK 0x15
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -47,12 +50,21 @@ typedef void (*pFunction)(void);
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+enum {
+  STATE_IDLE,
+  STATE_RECEIVING,
+  STATE_RECEIVED
+} state = STATE_IDLE;
+
 CAN_TxHeaderTypeDef TxHeader;
 uint8_t TxData[8];
 uint32_t TxMailbox;
 CAN_RxHeaderTypeDef RxHeader;
 uint8_t RxData[8];
-uint32_t filePos = 0; // Position in firmware file in words
+uint32_t file_pos = 0; // Position in firmware file in words
+uint8_t isotp_payload_rx[7] = {0};
+uint8_t isotp_payload_tx[7] = {0};
+int ret;
 
 static IsoTpLink isotp_link;
 
@@ -101,12 +113,6 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan) {
   case ISOTP_RECV_CAN_ID:
     isotp_on_can_message(&isotp_link, RxData, RxHeader.DLC);
     break;
-  
-  case 0x703:
-    // Firmware received, jump to application
-    // goToApp();
-    break;
-  
   default:
     break;
   }
@@ -163,17 +169,23 @@ int main(void)
   // Erase flash
   flashEraseAppSectors();
 
-  // Send inital NACK message
-  TxHeader.StdId = 0x702;
-  TxHeader.DLC = 1;
-  TxData[0] = 0x00;
-  HAL_CAN_AddTxMessage(&hcan1, &TxHeader, TxData, &TxMailbox);
+  // Send inital NACK message until we get response from host
+  uint16_t copy_size;
+  while (isotp_payload_rx[0] != ACK) {
+    isotp_payload_tx[0] = NACK;
+    ret = isotp_send(&isotp_link, isotp_payload_tx, 1);
+    HAL_Delay(5);
+    ret = isotp_receive(&isotp_link, isotp_payload_rx, sizeof(isotp_payload_rx), &copy_size);
+    HAL_Delay(100);
+  }
+
+  memset(isotp_payload_rx, 0, sizeof(isotp_payload_rx));
+  memset(isotp_payload_tx, 0, sizeof(isotp_payload_tx));
 
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  int ret;
   while (1)
   {
     // Poll ISO-TP Link
@@ -186,25 +198,22 @@ int main(void)
     // Receive firmware at ISOTP_BUFSIZE increments, and write to flash
     if (isotp_link.receive_status == ISOTP_RECEIVE_STATUS_FULL) {
       // Write to flash
-      ret = flashWriteApp(filePos, (uint32_t *) isotp_link.receive_buffer, isotp_link.receive_size / 4);
+      ret = flashWriteApp(file_pos, (uint32_t *) isotp_link.receive_buffer, isotp_link.receive_size / 4);
 
       if (ret != 0) {
         // Error writing to flash
         // Send error message
-        TxHeader.StdId = 0x702;
-        TxHeader.DLC = 1;
-        TxData[0] = 0x00;
-        HAL_CAN_AddTxMessage(&hcan1, &TxHeader, TxData, &TxMailbox);
+        isotp_payload_tx[0] = NACK;
+        isotp_send(&isotp_link, isotp_payload_tx, 1);
         Error_Handler();
       }
 
       // Send success message
-      TxHeader.StdId = 0x702;
-      TxHeader.DLC = 1;
-      TxData[0] = 0x01;
-      HAL_CAN_AddTxMessage(&hcan1, &TxHeader, TxData, &TxMailbox);
+      isotp_payload_tx[0] = ACK;
+      isotp_send(&isotp_link, isotp_payload_tx, 1);
 
-      filePos += isotp_link.receive_size;
+      file_pos += isotp_link.receive_size;
+      isotp_link.receive_status = ISOTP_RECEIVE_STATUS_IDLE;
     }
   }
   /* USER CODE END 3 */
