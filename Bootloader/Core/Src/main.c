@@ -223,8 +223,8 @@ int main(void)
     } else if (file_pos >= firmware_size) {
       // Firmware received
       // Send success message
-      // isotp_payload_tx[0] = ACK;
-      // isotp_send(&isotp_link, isotp_payload_tx, 1);
+      isotp_payload_tx[0] = ACK;
+      isotp_send(&isotp_link, isotp_payload_tx, 1);
 
       // Jump to application
       goToApp();
