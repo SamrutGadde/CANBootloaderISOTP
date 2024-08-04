@@ -6,6 +6,8 @@ import logging
 from can.interfaces.socketcan import SocketcanBus
 from can import Notifier, Message
 
+from time import sleep
+
 ISOTP_CAN_ID_SEND = 0x700
 ISOTP_CAN_ID_RECV = 0x701
 
@@ -15,7 +17,7 @@ CAN_ID_RECV = 0x702
 ACK = 0x06
 NACK = 0x15
 
-BUFFERING_SIZE = 4096
+BUFFERING_SIZE = 2048
 MAX_FILESIZE = 1024 * 50
 
 logging.basicConfig(level=logging.INFO)
@@ -29,7 +31,7 @@ def main(*args, **kwargs):
   bus = SocketcanBus(channel="can0")
   addr = isotp.Address(isotp.AddressingMode.Normal_11bits, txid=ISOTP_CAN_ID_SEND, rxid=ISOTP_CAN_ID_RECV)
   params = {
-    'blocking_send': False 
+    'blocking_send': False # for some reason, blocking send just gets stuck.
   }
 
   notifier = Notifier(bus, listeners=[])
@@ -52,7 +54,12 @@ def main(*args, **kwargs):
   
   try:
     # Send start ACK
-    stack.send(data=ACK.to_bytes(1), send_timeout=2)
+    # Bytes 1-4 are reserved for file size (little endian)
+    file_size = os.path.getsize(filename)
+    file_size_bytes = file_size.to_bytes(4, byteorder="little")
+    data = ACK.to_bytes(1) + file_size_bytes
+    logging.info(f"Sending initial ACK with file size: {os.path.getsize(filename)} and data: {data}")
+    stack.send(data=data)
   except Exception as e:
     stack.stop()
     bus.shutdown()
@@ -60,11 +67,12 @@ def main(*args, **kwargs):
 
   stack.stop()
 
+  sleep(1)
   logging.info("Sent initial ACK, starting file transfer.")
 
-  # Open file buffered by 4KB
+  # Open file buffered by BUFFERING_SIZE
   with open(filename, "rb") as f:
-    # Read file in chunks of 4KB
+    # Read file in chunks of BUFFERING_SIZE
     chunk = f.read(BUFFERING_SIZE)
     while chunk:
       # Send chunk over ISOTP
@@ -84,6 +92,7 @@ def main(*args, **kwargs):
         bus.shutdown()
         raise e
 
+      stack.stop()
       # Read next chunk
       chunk = f.read(BUFFERING_SIZE)
 

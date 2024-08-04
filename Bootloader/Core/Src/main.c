@@ -62,6 +62,7 @@ uint32_t TxMailbox;
 CAN_RxHeaderTypeDef RxHeader;
 uint8_t RxData[8];
 uint32_t file_pos = 0; // Position in firmware file in words
+uint32_t firmware_size = 0;
 uint8_t isotp_payload_rx[7] = {0};
 uint8_t isotp_payload_tx[7] = {0};
 int ret;
@@ -179,6 +180,10 @@ int main(void)
     HAL_Delay(100);
   }
 
+  // Byte 0: ACK
+  // Byte 1-4: Firmware size (little endian)
+  memcpy(&firmware_size, &isotp_payload_rx[1], 4);
+
   memset(isotp_payload_rx, 0, sizeof(isotp_payload_rx));
   memset(isotp_payload_tx, 0, sizeof(isotp_payload_tx));
 
@@ -200,6 +205,8 @@ int main(void)
       // Write to flash
       ret = flashWriteApp(file_pos, (uint32_t *) isotp_link.receive_buffer, isotp_link.receive_size / 4);
 
+      file_pos += isotp_link.receive_size;
+
       if (ret != 0) {
         // Error writing to flash
         // Send error message
@@ -212,8 +219,15 @@ int main(void)
       isotp_payload_tx[0] = ACK;
       isotp_send(&isotp_link, isotp_payload_tx, 1);
 
-      file_pos += isotp_link.receive_size;
       isotp_link.receive_status = ISOTP_RECEIVE_STATUS_IDLE;
+    } else if (file_pos >= firmware_size) {
+      // Firmware received
+      // Send success message
+      // isotp_payload_tx[0] = ACK;
+      // isotp_send(&isotp_link, isotp_payload_tx, 1);
+
+      // Jump to application
+      goToApp();
     }
   }
   /* USER CODE END 3 */

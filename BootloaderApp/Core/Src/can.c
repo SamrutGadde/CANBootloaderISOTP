@@ -54,24 +54,6 @@ void MX_CAN1_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN CAN1_Init 2 */
-  CAN_FilterTypeDef sFilterConfig;
-
-  sFilterConfig.FilterFIFOAssignment = CAN_RX_FIFO0; // set fifo assignment
-  sFilterConfig.FilterIdHigh = 0;
-  sFilterConfig.FilterIdLow = 0;
-  sFilterConfig.FilterMaskIdHigh = 0;
-  sFilterConfig.FilterMaskIdLow = 0;
-  sFilterConfig.FilterScale = CAN_FILTERSCALE_32BIT; // set filter scale
-  sFilterConfig.FilterActivation = ENABLE;
-  sFilterConfig.FilterBank = 5;
-  sFilterConfig.FilterMode = CAN_FILTERMODE_IDMASK;
-  sFilterConfig.SlaveStartFilterBank = 7;
-  HAL_CAN_ConfigFilter(&hcan1, &sFilterConfig);
-
-  if (HAL_CAN_Start(&hcan1) != HAL_OK)
-  {
-    Error_Handler();
-  }
   /* USER CODE END CAN1_Init 2 */
 
 }

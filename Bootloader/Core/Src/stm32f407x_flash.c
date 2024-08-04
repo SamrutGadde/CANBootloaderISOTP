@@ -74,7 +74,7 @@ static uint32_t GetSector(uint32_t Address)
 uint32_t flashWriteApp(uint32_t offset, uint32_t *data, uint16_t numWords)
 {
   /* Convert offset -> address */
-  uint32_t startAddr = FLASH_APP_ADDR + (offset * 4);
+  uint32_t startAddr = FLASH_APP_ADDR + offset;
   size_t soFar = 0;
 
   HAL_FLASH_Unlock();

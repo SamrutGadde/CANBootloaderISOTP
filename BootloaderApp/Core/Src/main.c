@@ -23,8 +23,6 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "isotp.h"
-#include "stm32f407x_flash.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -34,36 +32,15 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define ISOTP_BUFSIZE 4096
-#define ISOTP_RECV_CAN_ID 0x700
-#define REBOOT_REASON_ADDR 0x0800FC00
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-typedef enum {
-  REBOOT_REASON_NONE,
-  REBOOT_REASON_CAN_DFU
-} RebootReason;
-
-CAN_TxHeaderTypeDef TxHeader;
-uint8_t TxData[8];
-uint32_t TxMailbox;
-CAN_RxHeaderTypeDef RxHeader;
-uint8_t RxData[8];
-RebootReason rebootReason;
-
-static IsoTpLink isotp_link;
-
-static uint8_t isotp_rx_buffer[ISOTP_BUFSIZE];
-static uint8_t isotp_tx_buffer[ISOTP_BUFSIZE];
-
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -74,15 +51,6 @@ void SystemClock_Config(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan) {
-  if (HAL_CAN_GetRxMessage(&hcan1, CAN_RX_FIFO0, &RxHeader, RxData) != HAL_OK) {
-    Error_Handler();
-  }
-
-  if (RxHeader.StdId == ISOTP_RECV_CAN_ID) {
-    isotp_on_can_message(&isotp_link, RxData, RxHeader.DLC);
-  }
-}
 /* USER CODE END 0 */
 
 /**
@@ -93,6 +61,7 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
+
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -115,25 +84,18 @@ int main(void)
   MX_GPIO_Init();
   MX_CAN1_Init();
   /* USER CODE BEGIN 2 */
-
-  if (HAL_CAN_ActivateNotification(&hcan1, CAN_IT_RX_FIFO0_MSG_PENDING) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  isotp_init_link(&isotp_link, 0x701, isotp_tx_buffer, ISOTP_BUFSIZE, isotp_rx_buffer, ISOTP_BUFSIZE);
-
+  
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-    isotp_poll(&isotp_link);
-
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+    HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
+    HAL_Delay(1000);
   }
   /* USER CODE END 3 */
 }

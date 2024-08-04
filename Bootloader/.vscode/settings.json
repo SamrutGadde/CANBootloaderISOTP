@@ -5,7 +5,10 @@
     "stm32f4xx_hal.h": "c",
     "stdio.h": "c",
     "stm32f4xx_hal_conf.h": "c",
-    "isotp_defines.h": "c"
+    "isotp_defines.h": "c",
+    "stm32f407x_flash.h": "c",
+    "isotp.h": "c",
+    "isotp_user.h": "c"
   },
   "C_Cpp.default.compilerPath": "/home/sum/.platformio/packages/toolchain-gccarmnoneeabi/bin/arm-none-eabi-gcc"
 }
