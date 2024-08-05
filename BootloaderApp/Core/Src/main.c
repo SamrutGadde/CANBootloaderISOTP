@@ -32,6 +32,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define SHARED_FUNC __attribute__((section(".shared_functions")))
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -51,6 +52,9 @@ void SystemClock_Config(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+struct BootloaderSharedApi {
+  void (*goToBootloader)(void);
+};
 /* USER CODE END 0 */
 
 /**
@@ -61,7 +65,7 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-
+  struct BootloaderSharedApi *shared_api = (struct BootloaderSharedApi *) 0x08018000;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -84,6 +88,7 @@ int main(void)
   MX_GPIO_Init();
   MX_CAN1_Init();
   /* USER CODE BEGIN 2 */
+
   
   /* USER CODE END 2 */
 
@@ -94,7 +99,7 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
+    shared_api->goToBootloader();
     HAL_Delay(1000);
   }
   /* USER CODE END 3 */

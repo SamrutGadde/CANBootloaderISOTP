@@ -64,6 +64,7 @@ MEMORY
 RAM (xrw)      : ORIGIN = 0x20000000, LENGTH = 128K
 CCMRAM (xrw)      : ORIGIN = 0x10000000, LENGTH = 64K
 FLASH (rx)      : ORIGIN = 0x8008000, LENGTH = 480K 
+SHARED_MEMORY (rx): ORIGIN = 0x8018000, LENGTH = 32K
 }
 
 /* Define output sections */
@@ -95,6 +96,17 @@ SECTIONS
     _etext = .;        /* define a global symbols at end of code */
   } >FLASH
 
+  .shared_functions :
+	{
+	. = ALIGN(4);
+	__shared_functions_start__ = .;
+	*(.mysection*)
+	__shared_functions_end__ = .;
+	} > SHARED_MEMORY
+
+  /*check if SHARED_MEMORY usage exceeds SHARED_MEMORY size */
+	ASSERT(LENGTH(SHARED_MEMORY) >= (__shared_functions_end__ - __shared_functions_start__), "SHARED_MEMORY memory overflowed !")
+  
   /* Constant data goes into FLASH */
   .rodata :
   {

@@ -2,3 +2,7 @@
 # Python
 .venv
 
+# STM32CubeIDE
+build
+.settings
+.cproject

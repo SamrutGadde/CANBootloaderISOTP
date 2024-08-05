@@ -31,10 +31,16 @@
 /* USER CODE BEGIN PTD */
 typedef void (*ptrF)(uint32_t dlyticks);
 typedef void (*pFunction)(void);
+
+struct BootloaderSharedApi {
+  void (*goToBootloader)(void);
+};
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define SHARED_FUNC __attribute__((section(".shared_functions")))
+
 #define MAX_FIRMWARE_SIZE 1024 * 50
 #define ISOTP_BUFSIZE 4096
 #define ISOTP_RECV_CAN_ID 0x700
@@ -76,26 +82,40 @@ static uint8_t isotp_tx_buffer[ISOTP_BUFSIZE];
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
-void goToApp(void);
+void SHARED_FUNC goToBootloader(void);
+void goToApp(uint32_t);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-void goToApp(void)
+void SHARED_FUNC goToBootloader(void)
 {
+  HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
+}
+
+struct BootloaderSharedApi shared_api __attribute__((section(".bootloader_api"))) = {
+  goToBootloader
+};
+
+/**
+ * Jumps to specified address, if not specified, jumps to application address
+ */
+void goToApp(uint32_t jumpAddress)
+{
+  uint32_t FlashAddress = jumpAddress ? jumpAddress : FLASH_APP_ADDR;
   uint32_t JumpAddress;
   pFunction Jump_to_Application;
   printf("Jumping to Application \n");
 
-  if (((*(uint32_t *)FLASH_APP_ADDR) & 0x2FFC0000) == 0x20000000)
+  if (((*(uint32_t *)FlashAddress) & 0x2FFC0000) == 0x20000000)
   {
     HAL_Delay(100);
     printf("Valid Stack Pointer...\n");
 
-    JumpAddress = *(uint32_t *)(FLASH_APP_ADDR + 4);
+    JumpAddress = *(uint32_t *)(FlashAddress + 4);
     Jump_to_Application = (pFunction)JumpAddress;
 
-    __set_MSP(*(uint32_t *)FLASH_APP_ADDR);
+    __set_MSP(*(uint32_t *)FlashAddress);
     Jump_to_Application();
   }
   else
@@ -126,6 +146,7 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan) {
   */
 int main(void)
 {
+
   /* USER CODE BEGIN 1 */
   /* USER CODE END 1 */
 
@@ -151,11 +172,12 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
   // for testing, set boot pin to high
-  HAL_GPIO_WritePin(BOOT_GPIO_Port, BOOT_Pin, GPIO_PIN_SET);
+//  HAL_GPIO_WritePin(BOOT_GPIO_Port, BOOT_Pin, GPIO_PIN_SET);
 
   // If BOOT pin is reset, jump to application
-  if (HAL_GPIO_ReadPin(BOOT_GPIO_Port, BOOT_Pin) == GPIO_PIN_RESET) {
-    goToApp();
+  GPIO_PinState boot_pin_state = HAL_GPIO_ReadPin(BOOT_GPIO_Port, BOOT_Pin);
+  if (boot_pin_state == GPIO_PIN_RESET) {
+    goToApp(FLASH_APP_ADDR);
   }
 
   // Activate CAN RX interrupt
@@ -227,7 +249,7 @@ int main(void)
       isotp_send(&isotp_link, isotp_payload_tx, 1);
 
       // Jump to application
-      goToApp();
+      goToApp(FLASH_APP_ADDR);
     }
   }
   /* USER CODE END 3 */
