@@ -1,0 +1,3 @@
+[submodule "Bootloader/Libraries/isotp-c"]
+	path = Bootloader/Libraries/isotp-c
+	url = git@github.com:SimonCahill/isotp-c.git

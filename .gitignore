@@ -6,3 +6,6 @@
 build
 .settings
 .cproject
+
+# clangd
+.cache

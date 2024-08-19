@@ -2,14 +2,10 @@
 #define __ISOTP_USER_H__
 
 #include <stdint.h>
-#include "stm32f4xx_hal.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-/** @brief STM specific, set CAN handle for isotp */
-void isotp_user_set_can_handle(CAN_HandleTypeDef* hcan);
 
 /** @brief user implemented, print debug message */
 void isotp_user_debug(const char* message, ...);

@@ -14,7 +14,6 @@ Using a simple python script, you can flash an STM32F4 based device!
   - Linux kernel with SocketCAN
   - CAN Adapter (CANable or other)
   - STM32F407VET6 MCU Target
-  - Platformio (for building projects)
   - Python 3.7+
   - A CAN bus (of course)
 

@@ -5,7 +5,6 @@
   * @brief          : Main program body
   ******************************************************************************
   * @attention
-  *
   * Copyright (c) 2024 STMicroelectronics.
   * All rights reserved.
   *
@@ -56,11 +55,10 @@ struct BootloaderSharedApi {
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-enum {
-  STATE_IDLE,
-  STATE_RECEIVING,
-  STATE_RECEIVED
-} state = STATE_IDLE;
+typedef enum {
+  STATE_JUMP_APP,
+  STATE_NEW_FIRMWARE
+} bootloaderState;
 
 CAN_TxHeaderTypeDef TxHeader;
 uint8_t TxData[8];
@@ -72,6 +70,7 @@ uint32_t firmware_size = 0;
 uint8_t isotp_payload_rx[7] = {0};
 uint8_t isotp_payload_tx[7] = {0};
 int ret;
+bootloaderState state = STATE_NEW_FIRMWARE;
 
 static IsoTpLink isotp_link;
 
@@ -91,7 +90,11 @@ void goToApp(uint32_t);
 void SHARED_FUNC goToBootloader(void)
 {
   HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
+  HAL_GPIO_WritePin(BOOT_GPIO_Port, BOOT_Pin, GPIO_PIN_SET);
+  state = STATE_NEW_FIRMWARE;
 }
+
+
 
 struct BootloaderSharedApi shared_api __attribute__((section(".bootloader_api"))) = {
   goToBootloader
@@ -175,8 +178,12 @@ int main(void)
 //  HAL_GPIO_WritePin(BOOT_GPIO_Port, BOOT_Pin, GPIO_PIN_SET);
 
   // If BOOT pin is reset, jump to application
-  GPIO_PinState boot_pin_state = HAL_GPIO_ReadPin(BOOT_GPIO_Port, BOOT_Pin);
-  if (boot_pin_state == GPIO_PIN_RESET) {
+  /*GPIO_PinState boot_pin_state = HAL_GPIO_ReadPin(BOOT_GPIO_Port, BOOT_Pin);*/
+  /*if (boot_pin_state == GPIO_PIN_RESET) {*/
+  /*  goToApp(FLASH_APP_ADDR);*/
+  /*}*/
+
+  if (state == STATE_JUMP_APP) {
     goToApp(FLASH_APP_ADDR);
   }
 
