@@ -102,12 +102,12 @@ SECTIONS
   } >FLASH
 
   .shared_functions :
-	{
-	. = ALIGN(4);
-	__shared_functions_start__ = .;
-	*(.mysection*)
-	__shared_functions_end__ = .;
-	} > SHARED_MEMORY
+  {
+    . = ALIGN(4);
+    __shared_functions_start__ = .;
+    *(.shared_functions*)
+    __shared_functions_end__ = .;
+  } > SHARED_MEMORY
 
   /*check if SHARED_MEMORY usage exceeds SHARED_MEMORY size */
 	ASSERT(LENGTH(SHARED_MEMORY) >= (__shared_functions_end__ - __shared_functions_start__), "SHARED_MEMORY memory overflowed !")

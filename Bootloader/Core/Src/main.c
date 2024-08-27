@@ -24,12 +24,18 @@
 /* USER CODE BEGIN Includes */
 #include "isotp.h"
 #include "stm32f407x_flash.h"
+#include "stdbool.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
 typedef void (*ptrF)(uint32_t dlyticks);
 typedef void (*pFunction)(void);
+
+typedef enum {
+  STATE_JUMP_APP,
+  STATE_NEW_FIRMWARE
+} bootloaderState;
 
 struct BootloaderSharedApi {
   void (*goToBootloader)(void);
@@ -55,10 +61,7 @@ struct BootloaderSharedApi {
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-typedef enum {
-  STATE_JUMP_APP,
-  STATE_NEW_FIRMWARE
-} bootloaderState;
+bootloaderState __attribute__((section(".bootloader_ram"))) state = STATE_JUMP_APP;
 
 CAN_TxHeaderTypeDef TxHeader;
 uint8_t TxData[8];
@@ -70,7 +73,6 @@ uint32_t firmware_size = 0;
 uint8_t isotp_payload_rx[7] = {0};
 uint8_t isotp_payload_tx[7] = {0};
 int ret;
-bootloaderState state = STATE_NEW_FIRMWARE;
 
 static IsoTpLink isotp_link;
 
@@ -90,11 +92,9 @@ void goToApp(uint32_t);
 void SHARED_FUNC goToBootloader(void)
 {
   HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
-  HAL_GPIO_WritePin(BOOT_GPIO_Port, BOOT_Pin, GPIO_PIN_SET);
   state = STATE_NEW_FIRMWARE;
+  goToApp(FLASH_BOOTLOADER_ADDR);
 }
-
-
 
 struct BootloaderSharedApi shared_api __attribute__((section(".bootloader_api"))) = {
   goToBootloader
@@ -108,12 +108,12 @@ void goToApp(uint32_t jumpAddress)
   uint32_t FlashAddress = jumpAddress ? jumpAddress : FLASH_APP_ADDR;
   uint32_t JumpAddress;
   pFunction Jump_to_Application;
-  printf("Jumping to Application \n");
+  // printf("Jumping to Application \n");
 
   if (((*(uint32_t *)FlashAddress) & 0x2FFC0000) == 0x20000000)
   {
-    HAL_Delay(100);
-    printf("Valid Stack Pointer...\n");
+    // HAL_Delay(100);
+    // printf("Valid Stack Pointer...\n");
 
     JumpAddress = *(uint32_t *)(FlashAddress + 4);
     Jump_to_Application = (pFunction)JumpAddress;
@@ -123,7 +123,7 @@ void goToApp(uint32_t jumpAddress)
   }
   else
   {
-    printf("Failed to Start Application\n");
+    // printf("Failed to Start Application\n");
   }
 }
 
@@ -256,6 +256,7 @@ int main(void)
       isotp_send(&isotp_link, isotp_payload_tx, 1);
 
       // Jump to application
+      state = STATE_JUMP_APP;
       goToApp(FLASH_APP_ADDR);
     }
   }
